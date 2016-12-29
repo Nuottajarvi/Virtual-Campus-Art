@@ -1,0 +1,8 @@
+# http://brunorocha.org/python/watching-a-directory-for-file-changes-with-python.html
+
+import time
+from watchdogs.observers import Observer
+from watchdog.events import PatternMatchingEventHandler
+
+if __name__ == "__main__":
+  ligging.basicConfig(level = logging.INFO,)
