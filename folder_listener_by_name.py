@@ -28,7 +28,7 @@ def main(argv=None):
     observer = Observer()
     event_handler = MyEventHandler(observer)
 
-    observer.schedule(event_handler, path, recursive=True)
+    observer.schedule(event_handler, path, recursive=False)
     observer.start()
     try:
         while True:
