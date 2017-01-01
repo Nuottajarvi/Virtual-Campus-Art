@@ -1,5 +1,6 @@
-#!/usr/bin/env python
+# !/usr/bin/env python
 # -*- coding: utf-8 -*-
+# needed modules: requests, watchdog
 
 import logging
 import sys
@@ -8,6 +9,7 @@ import time
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 import re
+import requests
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -16,12 +18,17 @@ class MyEventHandler(FileSystemEventHandler):
         self.observer = observer
 
     def on_created(self, event):
-        tpe = str(event)
-        filename = re.search('src_path=\'(.+?)\'', tpe).group(1)
-        print ("filename: ", filename)
+        try:
+            eventStr = str(event)
+            filename = re.search('src_path=\'(.+?)\'', eventStr).group(1)
+            print ("filename: ", filename)
+            with open(filename, 'rb') as f:
+                r = requests.post('http://foo.bar/foobar, files={filename: f})
 
-#        with open('report.xls', 'rb') as f:
-#            r = requests.post('http://httpbin.org/post', files={'report.xls': f})
+
+        except AttributeError:
+            pass
+
         if not event.is_directory:
             print ("file created")
 
