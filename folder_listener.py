@@ -24,7 +24,7 @@ class MyEventHandler(FileSystemEventHandler):
             print ("filename: ", filename)
             #Opens the new file and makes a post request to given url.
             with open(filename, 'rb') as f:
-                r = requests.post('http://foo.bar/foobar, files={filename: f})
+                r = requests.post('http://foo.bar/foobar', files={filename: f})
         except AttributeError:
             pass
         if not event.is_directory:
