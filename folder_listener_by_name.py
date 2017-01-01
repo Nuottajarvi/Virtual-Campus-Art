@@ -7,23 +7,27 @@ import time
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+import re
 
 logging.basicConfig(level=logging.ERROR)
 
 class MyEventHandler(FileSystemEventHandler):
-    def __init__(self, observer): #rm 3rd argument filename
+    def __init__(self, observer):
         self.observer = observer
-        #self.filename = filename
 
     def on_created(self, event):
-        print ("e=", event)
+        tpe = str(event)
+        filename = re.search('src_path=\'(.+?)\'', tpe).group(1)
+        print ("filename: ", filename)
+
+#        with open('report.xls', 'rb') as f:
+#            r = requests.post('http://httpbin.org/post', files={'report.xls': f})
         if not event.is_directory:
             print ("file created")
 
 def main(argv=None):
 
     path = '.'
-    #filename = argv[1]
 
     observer = Observer()
     event_handler = MyEventHandler(observer)
