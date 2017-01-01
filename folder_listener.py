@@ -10,7 +10,6 @@ import requests
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-logging.basicConfig(level=logging.ERROR)
 
 class MyEventHandler(FileSystemEventHandler):
     def __init__(self, observer):
