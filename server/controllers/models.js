@@ -1,4 +1,5 @@
 var db = require('./../db');
+var moment = require('moment');
 
 module.exports = function modelCtrl() {
     function paramModel(req, res, next, model_id) {
@@ -22,7 +23,38 @@ module.exports = function modelCtrl() {
 
     function find(req, res) {
         db.getPool().getConnection(function (err, connection) {
-            connection.query('SELECT model_id, title, created_at, rating FROM models', function (error, results, fields) {
+            var query = 'SELECT model_id, title, created_at, rating FROM models';
+
+            /*
+                Check query type:
+                rated - return models ordered by their ratings
+                new - return models ordered by date
+                random - returns models randomly ordered weighted by ratings.
+            */
+            var type = '';
+            if (req.query.type === 'rated') {
+                type += ' ORDER BY rating DESC'; 
+            } else if (req.query.type === 'new') {
+                type += ' ORDER BY created_at DESC';
+            } else if (req.query.type === 'random') {
+                type += ' WHERE model_id IN (SELECT model_id FROM (SELECT model_id FROM models' +
+                 ' ORDER BY -LOG(RAND())/(ABS(rating) + 1)';
+            }
+
+            // Limit how many entries are returned.
+            var limit = '';
+            if (req.query.l) {
+                var n = +req.query.l || 1;
+                limit += ' LIMIT ' + connection.escape(n);
+            }
+
+            query += type + limit;
+            if (req.query.type == 'random') {
+                query += ') A)';
+            }
+            query += ';';
+
+            connection.query(query, function (error, results, fields) {
 
                 connection.release();
 
@@ -39,6 +71,14 @@ module.exports = function modelCtrl() {
         var model = req.body;
         model.data = JSON.stringify(model.data);
 
+        if (!model.created_at) {
+            model.created_at = moment().format('YYYY-MM-DD H:mm:ss');
+        }
+
+        if (!model.rating) {
+            model.rating = 0;
+        }
+
         db.getPool().getConnection(function (err, connection) {
             connection.query('INSERT INTO models SET ?', model, function (error, results, fields) {
 
@@ -47,6 +87,7 @@ module.exports = function modelCtrl() {
                 if (error) {
                     res.status(500).json({message: error});
                 } else {
+                    res.location('/api/models/' + results.insertId);
                     res.sendStatus(201);
                 }
             });
@@ -61,7 +102,7 @@ module.exports = function modelCtrl() {
         changeRating(req, res);
     }
 
-    function changeRating(req, res, up) {
+    function changeRating(req, res, upvoting) {
         var data = req.body;
 
         if (data.id) {
@@ -77,7 +118,7 @@ module.exports = function modelCtrl() {
                         var model = results[0];
                         model.data = JSON.parse(model.data);
                         var rating;
-                        if (up) {
+                        if (upvoting) {
                             rating = model.rating ? model.rating + 1 : 1;
                         } else {
                             rating = model.rating ? model.rating - 1 : -1;
