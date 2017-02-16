@@ -2,10 +2,12 @@
 var container;
 
 var positions = [
-					{x:00,z:00},
-					{x:20,z:20},
-					{x:40,z:40},
-					{x:60,z:60},
+					{x:-1.8, y: 0, z: -8},
+					{x:23, y: 3.72, z: 42},
+					{x:-27, y: 3.72, z: 48},
+					{x:-5, y: 3.72, z: -13},
+					{x:0, y: 3.72, z: -34},
+					{x:5.3, y: 3.72, z: -66},
 				]
 
 var camera, scene, renderer;
@@ -54,17 +56,8 @@ function pointerLock(bool){
 
 function getArtModels(scene){
 
-	/*var files = [
-		{name: "Teapot", rating: 58, url: "example_models/teapot.obj", id: 1},
-		{name: "Cow", rating: 240, url: "example_models/cow.obj", id: 2},
-		{name: "Pumpkin", rating: 158, url: "example_models/pumpkin.obj", id: 3},
-		{name: "Teddy", rating: 5, url: "example_models/teddy.obj", id: 4}
-	];*/
-
-	//model_id, title, created_at, rating
-
 	var files = [];
-/*
+
 	$.get("api/models?type=randomrated;l=3", function(data){
 
 		files.push(data);
@@ -74,14 +67,13 @@ function getArtModels(scene){
 			files.push(data);
 
 			var loader = new THREE.ObjectLoader();
-			objLoader.setPath( '' );
 
 			for(var file in files){
 				var getModel = function(file, index){
 					loader.load( file.url, function ( object ) {
 						object.position.x = positions[index].x;
+						object.position.y = positions[index].y;
 						object.position.z = positions[index].z;
-						object.position.y = 0;
 
 						object.children[0].name = file.name;
 						object.children[0].rating = file.rating;
@@ -95,7 +87,7 @@ function getArtModels(scene){
 				getModel(files[file], file);
 			}
 		});
-	});*/
+	});
 
 
 }
@@ -126,7 +118,7 @@ function init() {
 	getArtModels(scene);
 
 	var loader = new THREE.JSONLoader();
-	loader.load( 'textures/centralLobby.json', function ( geometry, materials ) {
+	loader.load( 'campus_model/centralLobby.json', function ( geometry, materials ) {
 		var material = new THREE.MultiMaterial( materials );
 		var object = new THREE.Mesh( geometry, material );
 		object.rotateX(Math.PI / 2);
@@ -277,8 +269,6 @@ function render() {
 
 		direction.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, controls.getObject().rotation.y, 0)));
 		direction.normalize();
-
-		console.log(direction);
 
 		movementRaycaster.set(origin, direction);
 
