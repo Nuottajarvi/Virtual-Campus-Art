@@ -1,6 +1,13 @@
 
 var container;
 
+var positions = [
+					{x:00,z:00},
+					{x:20,z:20},
+					{x:40,z:40},
+					{x:60,z:60},
+				]
+
 var camera, scene, renderer;
 
 var mouseX = 0, mouseY = 0;
@@ -8,7 +15,8 @@ var mouseX = 0, mouseY = 0;
 var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 
-var raycaster;
+var groundRaycaster;
+var movementRaycaster;
 var mouseRaycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
 var objects = [];
@@ -46,33 +54,50 @@ function pointerLock(bool){
 
 function getArtModels(scene){
 
-	var files = [
-		{name: "Teapot", rating: 58, url: "example_models/teapot.obj"},
-		{name: "Cow", rating: 240, url: "example_models/cow.obj"},
-		{name: "Pumpkin", rating: 158, url: "example_models/pumpkin.obj"},
-		{name: "Teddy", rating: 5, url: "example_models/teddy.obj"}
-	];
+	/*var files = [
+		{name: "Teapot", rating: 58, url: "example_models/teapot.obj", id: 1},
+		{name: "Cow", rating: 240, url: "example_models/cow.obj", id: 2},
+		{name: "Pumpkin", rating: 158, url: "example_models/pumpkin.obj", id: 3},
+		{name: "Teddy", rating: 5, url: "example_models/teddy.obj", id: 4}
+	];*/
 
-	var objLoader = new THREE.OBJLoader();
-	objLoader.setPath( '' );
+	//model_id, title, created_at, rating
 
-	for(var file in files){
-		var getModel = function(file){
-			objLoader.load( file.url, function ( object ) {
+	var files = [];
+/*
+	$.get("api/models?type=randomrated;l=3", function(data){
 
-				object.position.x = Math.floor(Math.random() * 100 - 50);
-				object.position.z = Math.floor(Math.random() * 100 - 50);
-				object.position.y = 0;
+		files.push(data);
 
-				object.children[0].name = file.name;
-				object.children[0].rating = file.rating;
+		$.get("api/models?type=randomnew;l=3", function(data){
 
-				artModels.push(object);
-				scene.add( object );
-			});
-		}
-		getModel(files[file]);
-	}
+			files.push(data);
+
+			var loader = new THREE.ObjectLoader();
+			objLoader.setPath( '' );
+
+			for(var file in files){
+				var getModel = function(file, index){
+					loader.load( file.url, function ( object ) {
+						object.position.x = positions[index].x;
+						object.position.z = positions[index].z;
+						object.position.y = 0;
+
+						object.children[0].name = file.name;
+						object.children[0].rating = file.rating;
+						object.children[0].objectId = file.model_id;
+						object.children[0].date = file.created_at;
+
+						artModels.push(object);
+						scene.add( object );
+					});
+				}
+				getModel(files[file], file);
+			}
+		});
+	});*/
+
+
 }
 
 function init() {
@@ -91,7 +116,7 @@ function init() {
 
 	scene = new THREE.Scene();
 
-	var ambient = new THREE.AmbientLight( 0x101030 );
+	var ambient = new THREE.AmbientLight( 0x303030 );
 	scene.add( ambient );
 
 	var directionalLight = new THREE.DirectionalLight( 0xffeedd );
@@ -100,26 +125,14 @@ function init() {
 
 	getArtModels(scene);
 
-
-/*	THREE.Loader.Handlers.add( /\.dds$/i, new THREE.DDSLoader() );
-
-	var mtlLoader = new THREE.MTLLoader();
-	mtlLoader.setPath( '' );
-	mtlLoader.load( 'centralLobby.mtl', function( materials ) {
-
-		materials.preload();
-
-		var objLoader = new THREE.OBJLoader();
-		objLoader.setMaterials( materials );
-		objLoader.setPath( '' );
-		objLoader.load( 'centralLobby.obj', function ( object ) {
-
-			object.position.y = 0;
-			scene.add( object );
-
-		});
-
-	});*/
+	var loader = new THREE.JSONLoader();
+	loader.load( 'textures/centralLobby.json', function ( geometry, materials ) {
+		var material = new THREE.MultiMaterial( materials );
+		var object = new THREE.Mesh( geometry, material );
+		object.rotateX(Math.PI / 2);
+		objects.push(object);
+		scene.add( object );
+	});
 
 	controls = new THREE.PointerLockControls( camera );
 	scene.add( controls.getObject() );
@@ -148,7 +161,7 @@ function init() {
 				break;
 
 			case 32: // space
-				if ( canJump === true ) velocity.y += 350;
+				if ( canJump === true ) velocity.y += 10;
 				canJump = false;
 				break;
 
@@ -206,7 +219,8 @@ function init() {
 	document.addEventListener( 'mousedown', onMouseDown, false );
 	window.addEventListener( 'resize', onWindowResize, false );
 
-	raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, -1, 0 ), 0, 10 );
+	groundRaycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, -1, 0 ), 0, 2);
+	movementRaycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3(), 0, 2);
 
 	renderer = new THREE.WebGLRenderer();
 	renderer.setPixelRatio( window.devicePixelRatio );
@@ -236,16 +250,15 @@ function render() {
 	var delta = ( time - prevTime ) / 1000;
 
 	if ( movementEnabled ) {
-		raycaster.ray.origin.copy( controls.getObject().position );
-		raycaster.ray.origin.y -= 10;
+		groundRaycaster.ray.origin.copy( controls.getObject().position );
 
-		var intersections = raycaster.intersectObjects( scene.children , true );
-		var isOnObject = intersections.length > 0;
+		var groundIntersections = groundRaycaster.intersectObjects( objects , true );
+		var isOnObject = groundIntersections.length > 0;
 
 		velocity.x -= velocity.x * 10.0 * delta;
 		velocity.z -= velocity.z * 10.0 * delta;
 
-		//velocity.y -= 9.8 * 0.1 * delta;
+		velocity.y -= 9.8 * 1 * delta;
 
 		if ( moveForward ) velocity.z -= 400.0 * delta;
 		if ( moveBackward ) velocity.z += 400.0 * delta;
@@ -259,18 +272,23 @@ function render() {
 			canJump = true;
 		}
 
-		controls.getObject().translateX( velocity.x * delta );
-		controls.getObject().translateY( velocity.y * delta );
-		controls.getObject().translateZ( velocity.z * delta );
+		var origin = controls.getObject().position;
+		var direction = new THREE.Vector3(velocity.x, 0, velocity.z);
 
-		/*if ( controls.getObject().position.y < 10 ) {
+		direction.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, controls.getObject().rotation.y, 0)));
+		direction.normalize();
 
-			velocity.y = 0;
-			controls.getObject().position.y = 10;
+		console.log(direction);
 
-			canJump = true;
+		movementRaycaster.set(origin, direction);
 
-		}*/
+		var movementIntersections = movementRaycaster.intersectObjects(objects, true);
+
+		if(!(movementIntersections.length > 0)){
+			controls.getObject().translateX( velocity.x * delta );
+			controls.getObject().translateY( velocity.y * delta );
+			controls.getObject().translateZ( velocity.z * delta );
+		}
 	}
 	prevTime = time;
 	renderer.render(scene, camera);

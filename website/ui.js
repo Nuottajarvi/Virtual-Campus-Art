@@ -9,14 +9,27 @@ var UI = {
 			$("body").append(data);
 			this.opened = true;
 
-			console.log(object);
 			$("#title").text(object.name);
 			$("#rating").text((object.rating>0?"+":"") + object.rating);
-
 
 			$("#close").click(function(){
 				pointerLock(true)
 			});
+
+			$("#upvote").click(function(){
+				$.post("/api/models/upvote", {id: object.objectId})
+				.done(function(){
+					object.rating++;
+				});
+			});
+
+			$("#downvote").click(function(){
+				$.post("/api/models/downvote", {id: object.objectId})
+				.done(function(){
+					object.rating--;
+				});
+			});
+
 		}.bind(this));
 	},
 

@@ -36,9 +36,12 @@ module.exports = function modelCtrl() {
                 type += ' ORDER BY rating DESC'; 
             } else if (req.query.type === 'new') {
                 type += ' ORDER BY created_at DESC';
-            } else if (req.query.type === 'random') {
+            } else if (req.query.type === 'randomrating') {
                 type += ' WHERE model_id IN (SELECT model_id FROM (SELECT model_id FROM models' +
                  ' ORDER BY -LOG(RAND())/(ABS(rating) + 1)';
+            } else if (req.query.type === 'randomnew') {
+                type += ' WHERE model_id IN (SELECT model_id FROM (SELECT model_id FROM models' +
+                 ' ORDER BY -LOG(RAND())/(ABS(created_at) + 1)';
             }
 
             // Limit how many entries are returned.
@@ -49,7 +52,7 @@ module.exports = function modelCtrl() {
             }
 
             query += type + limit;
-            if (req.query.type == 'random') {
+            if (req.query.type == 'randomrating' || req.query.type == 'randomnew') {
                 query += ') A)';
             }
             query += ';';
