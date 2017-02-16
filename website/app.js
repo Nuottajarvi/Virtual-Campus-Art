@@ -54,28 +54,40 @@ function pointerLock(bool){
 	}
 }
 
+function shuffle(a) {
+    var j, x, i;
+    for (i = a.length; i; i--) {
+        j = Math.floor(Math.random() * i);
+        x = a[i - 1];
+        a[i - 1] = a[j];
+        a[j] = x;
+    }
+}
+
 function getArtModels(scene){
 
 	var files = [];
 
 	$.get("api/models?type=randomrated;l=3", function(data){
 
-		files.push(data);
+		files = files.concat(data);
 
 		$.get("api/models?type=randomnew;l=3", function(data){
 
-			files.push(data);
+			files = files.concat(data);
+			shuffle(files);
+			
 
 			var loader = new THREE.ObjectLoader();
 
 			for(var file in files){
 				var getModel = function(file, index){
-					loader.load( file.url, function ( object ) {
+					loader.load( "/api/models/" + file.model_id + "/data", function ( object ) {
 						object.position.x = positions[index].x;
 						object.position.y = positions[index].y;
 						object.position.z = positions[index].z;
 
-						object.children[0].name = file.name;
+						object.children[0].name = file.title;
 						object.children[0].rating = file.rating;
 						object.children[0].objectId = file.model_id;
 						object.children[0].date = file.created_at;
