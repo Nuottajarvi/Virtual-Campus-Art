@@ -27,7 +27,7 @@ class MyEventHandler(FileSystemEventHandler):
             print ("filename: ", filename)
             #Converts found file to three.js jsonself.
             os.path.abspath(".")
-            os.system("python convert_to_threejs.py %s %s.json -l" % (filename, filename))
+            os.system("python convert_to_threejs.py %s %s.json" % (filename, filename[:-4]))
             #if filename.endswith(".json"):
                 #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
