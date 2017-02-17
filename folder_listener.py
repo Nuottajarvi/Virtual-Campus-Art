@@ -26,14 +26,14 @@ class MyEventHandler(FileSystemEventHandler):
                 filename = filename[2:]
             print ("filename: ", filename)
             #Converts found file to three.js jsonself.
-            cur_dir = os.path.abspath(".")
+            os.path.abspath(".")
             os.system("python convert_to_threejs.py %s %s.json -l" % (filename, filename))
             #if filename.endswith(".json"):
                 #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
             with open(filename, 'rb') as f:
-                print("jsonfilename: ", filename)
-                #r = requests.post('http://pnuottaj-b.sendanor.fi/api/models', files={jsonFilename: f})
+                print("filename: ", filename)
+                r = requests.post('http://pnuottaj-b.sendanor.fi/api/models', files={filename: f})
         except AttributeError:
             pass
         if not event.is_directory:
