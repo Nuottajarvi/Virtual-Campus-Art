@@ -7,8 +7,10 @@ import sys
 import time
 import re
 import requests
+import os
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+
 
 
 class MyEventHandler(FileSystemEventHandler):
@@ -20,10 +22,18 @@ class MyEventHandler(FileSystemEventHandler):
             eventStr = str(event)
             #Extracts the filename from the "file created"-event.
             filename = re.search('src_path=\'(.+?)\'', eventStr).group(1)
+            if filename.startswith("./"):
+                filename = filename[2:]
             print ("filename: ", filename)
+            #Converts found file to three.js jsonself.
+            cur_dir = os.path.abspath(".")
+            os.system("python convert_to_threejs.py %s %s.json -l" % (filename, filename))
+            #if filename.endswith(".json"):
+                #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
             with open(filename, 'rb') as f:
-                r = requests.post('http://foo.bar/foobar', files={filename: f})
+                print("jsonfilename: ", filename)
+                #r = requests.post('http://pnuottaj-b.sendanor.fi/api/models', files={jsonFilename: f})
         except AttributeError:
             pass
         if not event.is_directory:
