@@ -8,33 +8,31 @@ import time
 import re
 import requests
 import os
+import json
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+CONVERTER_SCRIPT = 'convert_to_threejs.py'
+API_URL = 'http://localhost:3000/api/models'
 
 
 class MyEventHandler(FileSystemEventHandler):
-    def __init__(self, observer):
-        self.observer = observer
     #Triggers when a new file is made. Ignores directories.
     def on_created(self, event):
         try:
-            eventStr = str(event)
-            #Extracts the filename from the "file created"-event.
-            filename = re.search('src_path=\'(.+?)\'', eventStr).group(1)
-            if filename.startswith("./"):
-                filename = filename[2:]
-            print ("filename: ", filename)
+            print ("Dirname: ", event.src_path)
+            filename = event.src_path[2:]
             #Converts found file to three.js jsonself.
-            os.path.abspath(".")
-            os.system("python convert_to_threejs.py %s %s.json" % (filename, filename[:-4]))
-            filename = filename[:-4]+".json"
+            #os.path.abspath(".")
+            os.system("python %s \"%s/%s.fbx\" \"%s/%s_.json\"" % (CONVERTER_SCRIPT, filename, filename, filename, filename))
             #if filename.endswith(".json"):
                 #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
-            with open(filename, 'rb') as f:
-                print("filename: ", filename)
-                r = requests.post('http://pnuottaj-b.sendanor.fi/api/models', files={filename: f})
+            with open("%s/%s" % (event.src_path, filename + "_.json"), 'rb') as f:
+                body = {}
+                body['title'] = filename
+                body['data'] = json.load(f)
+                r = requests.post(API_URL, json=body)
         except AttributeError:
             pass
         if not event.is_directory:
@@ -44,10 +42,7 @@ def main(argv=None):
     #Define path to the folder to be watched.
     path = '.'
     observer = Observer()
-    event_handler = MyEventHandler(observer)
-
-    #Apply Myeventhander on given folder either recursively or not.
-    observer.schedule(event_handler, path, recursive=False)
+    observer.schedule(MyEventHandler(), path, recursive=False)
     observer.start()
     try:
         while True:
