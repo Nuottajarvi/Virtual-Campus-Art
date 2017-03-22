@@ -23,12 +23,17 @@ class MyEventHandler(FileSystemEventHandler):
             print ("Dirname: ", event.src_path)
             filename = event.src_path[2:]
             #Converts found file to three.js jsonself.
-            #os.path.abspath(".")
-            os.system("python %s \"%s/%s.fbx\" \"%s/%s_.json\"" % (CONVERTER_SCRIPT, filename, filename, filename, filename))
+            #filepath = "%s/%s" % (filename, filename)
+            filepath = os.path.join(os.path.dirname(__file__), "%s/%s" % (filename, filename))
+            print (filepath)
+            print ("Converting...")
+            os.system('python %s -t "%s.fbx" "%s_.json"' % (CONVERTER_SCRIPT, filepath, filepath))
+            print ("Conversion done!")
+            time.sleep(1)
             #if filename.endswith(".json"):
                 #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
-            with open("%s/%s" % (event.src_path, filename + "_.json"), 'rb') as f:
+            with open(filepath + '_.json', 'rb') as f:
                 body = {}
                 body['title'] = filename
                 body['data'] = json.load(f)

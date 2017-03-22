@@ -1,5 +1,9 @@
 # @author zfedoran / http://github.com/zfedoran
 
+#
+# LMO 2017
+#
+
 import os
 import sys
 import math
@@ -8,6 +12,7 @@ import re
 import json
 import types
 import shutil
+import uuid
 
 # #####################################################
 # Globals
@@ -248,6 +253,14 @@ def getPrefixedName(o, prefix):
     return (prefix + '_%s_') % o.GetUniqueID() + o.GetName()
 
 # #####################################################
+# UUID helpers
+# #####################################################
+def getUUID(name, uuid_dict):
+    if name not in uuid_dict:
+        uuid_dict[name] = str(uuid.uuid4())
+    return uuid_dict[name]
+
+# #####################################################
 # Triangulation
 # #####################################################
 def triangulate_node_hierarchy(node):
@@ -273,7 +286,7 @@ def triangulate_scene(scene):
 # #####################################################
 # Generate Material Object
 # #####################################################
-def generate_texture_bindings(material_property, material_params):
+def generate_texture_bindings(material_property, output, uuid_dict):
     # FBX to Three.js texture types
     binding_types = {
         "DiffuseColor": "map",
@@ -287,7 +300,7 @@ def generate_texture_bindings(material_property, material_params):
         "ShininessExponent": "shininessExponent",
         "NormalMap": "normalMap",
         "Bump": "bumpMap",
-        "TransparentColor": "transparentMap",
+        "TransparentColor": "alphaMap",
         "TransparencyFactor": "transparentFactor",
         "ReflectionColor": "reflectionMap",
         "ReflectionFactor": "reflectionFactor",
@@ -305,18 +318,35 @@ def generate_texture_bindings(material_property, material_params):
                 for k in range(texture_count):
                     texture = layered_texture.GetSrcObject(FbxCriteria.ObjectType(FbxTexture.ClassId),k)
                     if texture:
-                        texture_id = getTextureName(texture, True)
-                        material_params[binding_types[str(material_property.GetName())]] = texture_id
+                        if type(texture) is FbxFileTexture:
+                            url = texture.GetFileName()
+                        else:
+                            url = getTextureName( texture )
+                        index = url.rfind( '/' )
+                        if index == -1:
+                            index = url.rfind( '\\' )
+                        filename = url[ index+1 : len(url) ]
+                        texture_uuid = getUUID(filename, uuid_dict['textures'])
+                        output[binding_types[str(material_property.GetName())]] = texture_uuid
         else:
             # no layered texture simply get on the property
             texture_count = material_property.GetSrcObjectCount(FbxCriteria.ObjectType(FbxTexture.ClassId))
             for j in range(texture_count):
                 texture = material_property.GetSrcObject(FbxCriteria.ObjectType(FbxTexture.ClassId),j)
                 if texture:
-                    texture_id = getTextureName(texture, True)
-                    material_params[binding_types[str(material_property.GetName())]] = texture_id
+                    if type(texture) is FbxFileTexture:
+                        url = texture.GetFileName()
+                    else:
+                        url = getTextureName( texture )
+                    index = url.rfind( '/' )
+                    if index == -1:
+                        index = url.rfind( '\\' )
+                    filename = url[ index+1 : len(url) ]
 
-def generate_material_object(material):
+                    texture_uuid = getUUID(filename, uuid_dict['textures'])
+                    output[binding_types[str(material_property.GetName())]] = texture_uuid
+
+def generate_material_object(material, uuid_dict):
     #Get the implementation to see if it's a hardware shader.
     implementation = GetImplementation(material, "ImplementationHLSL")
     implementation_type = "HLSL"
@@ -325,8 +355,8 @@ def generate_material_object(material):
         implementation_type = "CGFX"
 
     output = None
-    material_params = None
-    material_type = None
+    #material_params = None
+    #material_type = None
 
     if implementation:
         print("Shader materials are not supported")
@@ -342,8 +372,8 @@ def generate_material_object(material):
         transparent = False
         reflectivity = 1
 
-        material_type = 'MeshBasicMaterial'
-#        material_type = 'MeshLambertMaterial'
+        #material_type = 'MeshLambertMaterial'
+        '''
         material_params = {
 
           'color' : diffuse,
@@ -353,6 +383,15 @@ def generate_material_object(material):
           'transparent' : transparent,
           'opacity' : opacity
 
+        }
+        '''
+        output = {
+            'type': 'MeshLambertMaterial',
+            'emissive': emissive,
+            'color': diffuse,
+            'opacity': opacity,
+            'transparent': transparent,
+            'reflectivity': reflectivity
         }
 
     elif material.GetClassId().Is(FbxSurfacePhong.ClassId):
@@ -369,6 +408,7 @@ def generate_material_object(material):
         reflectivity = 1
         bumpScale = 1
 
+        '''
         material_type = 'MeshPhongMaterial'
         material_params = {
 
@@ -383,12 +423,24 @@ def generate_material_object(material):
           'opacity' : opacity
 
         }
+        '''
+        output = {
+            'type': 'MeshPhongMaterial',
+            'color': diffuse,
+            'emissive': emissive,
+            'specular': specular,
+            'shininess': shininess,
+            'bumpScale': bumpScale,
+            'reflectivity': reflectivity,
+            'transparent': transparent,
+            'opacity': opacity
+        }
 
     else:
         print ("Unknown type of Material"), getMaterialName(material)
 
     # default to Lambert Material if the current Material type cannot be handeled
-    if not material_type:
+    if not output:
         ambient   = getHex((0,0,0))
         diffuse   = getHex((0.5,0.5,0.5))
         emissive  = getHex((0,0,0))
@@ -397,38 +449,33 @@ def generate_material_object(material):
         reflectivity = 1
 
         material_type = 'MeshLambertMaterial'
-        material_params = {
-
-          'color' : diffuse,
-          'ambient' : ambient,
-          'emissive' : emissive,
-          'reflectivity' : reflectivity,
-          'transparent' : transparent,
-          'opacity' : opacity
-
+        output = {
+            'type': 'MeshLambertMaterial',
+            'color' : diffuse,
+            'ambient' : ambient,
+            'emissive' : emissive,
+            'reflectivity' : reflectivity,
+            'transparent' : transparent,
+            'opacity' : opacity
         }
 
     if option_textures:
         texture_count = FbxLayerElement.sTypeTextureCount()
         for texture_index in range(texture_count):
             material_property = material.FindProperty(FbxLayerElement.sTextureChannelNames(texture_index))
-            generate_texture_bindings(material_property, material_params)
+            #generate_texture_bindings(material_property, output, uuid_dict)
 
-    material_params['wireframe'] = False
-    material_params['wireframeLinewidth'] = 1
-
-    output = {
-      'type' : material_type,
-      'parameters' : material_params
-    }
+    output['wireframe'] = False
+    output['wireframeLinewidth'] = 1
+    output['uuid'] = getUUID(material.GetName(), uuid_dict['materials'])
 
     return output
 
-def generate_proxy_material_object(node, material_names):
+def generate_proxy_material_object(node, materials):
 
     material_type = 'MultiMaterial'
     material_params = {
-      'materials' : material_names
+      'materials' : materials
     }
 
     output = {
@@ -441,7 +488,7 @@ def generate_proxy_material_object(node, material_names):
 # #####################################################
 # Find Scene Materials
 # #####################################################
-def extract_materials_from_node(node, material_dict):
+def extract_materials_from_node(node, material_list, uuid_dict):
     name = node.GetName()
     mesh = node.GetNodeAttribute()
 
@@ -452,6 +499,7 @@ def extract_materials_from_node(node, material_dict):
             material_count = node.GetMaterialCount()
 
     material_names = []
+    proxy_material_uuids = []
     for l in range(mesh.GetLayerCount()):
         materials = mesh.GetLayer(l).GetMaterials()
         if materials:
@@ -459,34 +507,36 @@ def extract_materials_from_node(node, material_dict):
                 #Materials are in an undefined external table
                 continue
             for i in range(material_count):
-                material = node.GetMaterial(i)
-                material_names.append(getMaterialName(material))
+                proxy_material_uuids.append(getUUID(node.GetName(), uuid_dict['materials']))
+                #material = node.GetMaterial(i)
+                #material_names.append(getMaterialName(material))
 
     if material_count > 1:
-        proxy_material = generate_proxy_material_object(node, material_names)
+        proxy_material = generate_proxy_material_object(node, proxy_material_uuids)
         proxy_name = getMaterialName(node, True)
-        material_dict[proxy_name] = proxy_material
+        if proxy_material not in material_list:
+            material_list.append(proxy_material)
 
-def generate_materials_from_hierarchy(node, material_dict):
+def generate_materials_from_hierarchy(node, material_list, uuid_dict):
     if node.GetNodeAttribute() == None:
         pass
     else:
         attribute_type = (node.GetNodeAttribute().GetAttributeType())
         if attribute_type == FbxNodeAttribute.eMesh:
-            extract_materials_from_node(node, material_dict)
+            extract_materials_from_node(node, material_list, uuid_dict)
     for i in range(node.GetChildCount()):
-        generate_materials_from_hierarchy(node.GetChild(i), material_dict)
+        generate_materials_from_hierarchy(node.GetChild(i), material_list, uuid_dict)
 
-def generate_material_dict(scene):
-    material_dict = {}
+def generate_material_list(scene, uuid_dict):
+    material_list = []
 
     # generate all materials for this scene
     material_count = scene.GetSrcObjectCount(FbxCriteria.ObjectType(FbxSurfaceMaterial.ClassId))
     for i in range(material_count):
         material = scene.GetSrcObject(FbxCriteria.ObjectType(FbxSurfaceMaterial.ClassId), i)
-        material_object = generate_material_object(material)
-        material_name = getMaterialName(material)
-        material_dict[material_name] = material_object
+        material_object = generate_material_object(material, uuid_dict)
+        if material_object not in material_list:
+            material_list.append(material_object)
 
     # generate material porxies
     # Three.js does not support meshs with multiple materials, however it does
@@ -494,14 +544,36 @@ def generate_material_dict(scene):
     node = scene.GetRootNode()
     if node:
         for i in range(node.GetChildCount()):
-            generate_materials_from_hierarchy(node.GetChild(i), material_dict)
+            generate_materials_from_hierarchy(node.GetChild(i), material_list, uuid_dict)
 
-    return material_dict
+    return material_list
+
+# #####################################################
+# Generate Image Object
+# #####################################################
+def generate_image_object(texture, uuid_dict):
+
+    if type(texture) is FbxFileTexture:
+        url = texture.GetFileName()
+    else:
+        url = getTextureName( texture )
+
+    index = url.rfind( '/' )
+    if index == -1:
+        index = url.rfind( '\\' )
+    filename = url[ index+1 : len(url) ]
+
+    output = {
+        'uuid': getUUID(filename, uuid_dict['images']),
+        'url': filename
+    }
+
+    return output
 
 # #####################################################
 # Generate Texture Object
 # #####################################################
-def generate_texture_object(texture):
+def generate_texture_object(texture, uuid_dict):
 
     #TODO: extract more texture properties
     wrap_u = texture.GetWrapModeU()
@@ -521,7 +593,7 @@ def generate_texture_object(texture):
         index = url.rfind( '\\' )
     filename = url[ index+1 : len(url) ]
 
-    output = {
+    '''    output = {
 
       'url': filename,
       'fullpath': url,
@@ -531,6 +603,11 @@ def generate_texture_object(texture):
       'minFilter': 'LinearMipMapLinearFilter',
       'anisotropy': True
 
+    }'''
+    output = {
+        'uuid': getUUID(filename, uuid_dict['textures']),
+        'image': getUUID(filename, uuid_dict['images']),
+        'repeat': serializeVector2((1, 1))
     }
 
     return output
@@ -562,7 +639,7 @@ def replace_OutFolder2inFolder(url):
 # #####################################################
 # Find Scene Textures
 # #####################################################
-def extract_material_textures(material_property, texture_dict):
+def extract_material_textures(material_property, image_list, texture_list, uuid_dict):
     if material_property.IsValid():
         #Here we have to check if it's layeredtextures, or just textures:
         layered_texture_count = material_property.GetSrcObjectCount(FbxCriteria.ObjectType(FbxLayeredTexture.ClassId))
@@ -573,20 +650,28 @@ def extract_material_textures(material_property, texture_dict):
                 for k in range(texture_count):
                     texture = layered_texture.GetSrcObject(FbxCriteria.ObjectType(FbxTexture.ClassId),k)
                     if texture:
-                        texture_object = generate_texture_object(texture)
-                        texture_name = getTextureName( texture, True )
-                        texture_dict[texture_name] = texture_object
+                        image_object = generate_image_object(texture, uuid_dict)
+                        texture_object = generate_texture_object(texture, uuid_dict)
+                        #texture_name = getTextureName( texture, True )
+                        if image_object not in image_list:
+                            image_list.append(image_object)
+                        if texture_object not in texture_list:
+                            texture_list.append(texture_object)
         else:
             # no layered texture simply get on the property
             texture_count = material_property.GetSrcObjectCount(FbxCriteria.ObjectType(FbxTexture.ClassId))
             for j in range(texture_count):
                 texture = material_property.GetSrcObject(FbxCriteria.ObjectType(FbxTexture.ClassId),j)
                 if texture:
-                    texture_object = generate_texture_object(texture)
-                    texture_name = getTextureName( texture, True )
-                    texture_dict[texture_name] = texture_object
+                    image_object = generate_image_object(texture, uuid_dict)
+                    texture_object = generate_texture_object(texture, uuid_dict)
+                    #texture_name = getTextureName( texture, True )
+                    if image_object not in image_list:
+                        image_list.append(image_object)
+                    if texture_object not in texture_list:
+                        texture_list.append(texture_object)
 
-def extract_textures_from_node(node, texture_dict):
+def extract_textures_from_node(node, image_list, texture_list, uuid_dict):
     name = node.GetName()
     mesh = node.GetNodeAttribute()
 
@@ -600,28 +685,29 @@ def extract_textures_from_node(node, texture_dict):
             texture_count = FbxLayerElement.sTypeTextureCount()
             for texture_index in range(texture_count):
                 material_property = material.FindProperty(FbxLayerElement.sTextureChannelNames(texture_index))
-                extract_material_textures(material_property, texture_dict)
+                extract_material_textures(material_property, image_list, texture_list, uuid_dict)
 
-def generate_textures_from_hierarchy(node, texture_dict):
+def generate_textures_from_hierarchy(node, image_list, texture_list, uuid_dict):
     if node.GetNodeAttribute() == None:
         pass
     else:
         attribute_type = (node.GetNodeAttribute().GetAttributeType())
         if attribute_type == FbxNodeAttribute.eMesh:
-            extract_textures_from_node(node, texture_dict)
+            extract_textures_from_node(node, image_list, texture_list, uuid_dict)
     for i in range(node.GetChildCount()):
-        generate_textures_from_hierarchy(node.GetChild(i), texture_dict)
+        generate_textures_from_hierarchy(node.GetChild(i), image_list, texture_list, uuid_dict)
 
-def generate_texture_dict(scene):
+def generate_texture_lists(scene, uuid_dict):
     if not option_textures:
         return {}
 
-    texture_dict = {}
+    image_list = []
+    texture_list = []
     node = scene.GetRootNode()
     if node:
         for i in range(node.GetChildCount()):
-            generate_textures_from_hierarchy(node.GetChild(i), texture_dict)
-    return texture_dict
+            generate_textures_from_hierarchy(node.GetChild(i), image_list, texture_list, uuid_dict)
+    return image_list, texture_list
 
 # #####################################################
 # Extract Fbx SDK Mesh Data
@@ -1420,8 +1506,6 @@ def generate_scene_output(node):
     }
 
     output = {
-      'scale' : 1,
-      'materials' : [],
       'vertices' : vertices,
       'normals' : [] if nnormals <= 0 else normal_values,
       'colors' : [] if ncolors <= 0 else color_values,
@@ -1576,34 +1660,34 @@ def generate_embed_dict(scene):
 # #####################################################
 # Generate Geometry Objects
 # #####################################################
-def generate_geometry_object(node):
-
+def generate_geometry_object(node, uuid_dict):
     output = {
-      'type' : 'embedded',
-      'id' : getPrefixedName( node, 'Embed' )
+      'type' : 'Geometry',
+      'uuid': getUUID(node.GetName(), uuid_dict['geometries']),
+      'data': generate_scene_output(node)
     }
 
     return output
 
-def generate_geometry_dict_from_hierarchy(node, geometry_dict):
+def generate_geometry_list_from_hierarchy(node, geometry_list, uuid_dict):
     if node.GetNodeAttribute() == None:
         pass
     else:
         attribute_type = (node.GetNodeAttribute().GetAttributeType())
         if attribute_type == FbxNodeAttribute.eMesh:
-            geometry_object = generate_geometry_object(node)
-            geometry_name = getPrefixedName( node, 'Geometry' )
-            geometry_dict[geometry_name] = geometry_object
+            geometry_object = generate_geometry_object(node, uuid_dict)
+            #geometry_name = getPrefixedName( node, 'Geometry' )
+            geometry_list.append(geometry_object)
     for i in range(node.GetChildCount()):
-        generate_geometry_dict_from_hierarchy(node.GetChild(i), geometry_dict)
+        generate_geometry_list_from_hierarchy(node.GetChild(i), geometry_list)
 
-def generate_geometry_dict(scene):
-    geometry_dict = {}
+def generate_geometry_list(scene, uuid_dict):
+    geometry_list = []
     node = scene.GetRootNode()
     if node:
         for i in range(node.GetChildCount()):
-            generate_geometry_dict_from_hierarchy(node.GetChild(i), geometry_dict)
-    return geometry_dict
+            generate_geometry_list_from_hierarchy(node.GetChild(i), geometry_list, uuid_dict)
+    return geometry_list
 
 
 # #####################################################
@@ -1803,7 +1887,7 @@ def generate_camera_name_list(scene):
 # #####################################################
 # Generate Mesh Node Object
 # #####################################################
-def generate_mesh_object(node):
+def generate_mesh_object(node, uuid_dict):
     mesh = node.GetNodeAttribute()
     transform = node.EvaluateLocalTransform()
     position = transform.GetT()
@@ -1832,6 +1916,7 @@ def generate_mesh_object(node):
         #If this mesh has more than one material, use a proxy material
         material_name = getMaterialName( node, True) if material_count > 1 else material_names[0]
 
+    '''
     output = {
       'geometry': getPrefixedName( node, 'Geometry' ),
       'material': material_name,
@@ -1839,6 +1924,21 @@ def generate_mesh_object(node):
       'quaternion': serializeVector4( quaternion ),
       'scale': serializeVector3( scale ),
       'visible': True,
+    }
+    '''
+    object_name = node.GetName()
+    material_uuid = getUUID(material.GetName(), uuid_dict['materials'])
+    geometry_uuid = getUUID(object_name, uuid_dict['geometries'])
+
+    output = {
+        'name': object_name,
+        'visible': True,
+        'type': 'Mesh',
+        'material': material_uuid,
+        'geometry': geometry_uuid,
+        'position': serializeVector3( position ),
+        'quaternion': serializeVector4( quaternion ),
+        'scale': serializeVector3( scale ),
     }
 
     return output
@@ -1869,7 +1969,8 @@ def generate_object(node):
       'position': serializeVector3( position ),
       'quaternion': serializeVector4( quaternion ),
       'scale': serializeVector3( scale ),
-      'visible': True
+      'visible': True,
+      'name': getObjectName( node )
     }
 
     return output
@@ -1877,14 +1978,14 @@ def generate_object(node):
 # #####################################################
 # Parse Scene Node Objects
 # #####################################################
-def generate_object_hierarchy(node, object_dict):
+def generate_object_hierarchy(node, object_list, uuid_dict):
     object_count = 0
     if node.GetNodeAttribute() == None:
         object_data = generate_object(node)
     else:
         attribute_type = (node.GetNodeAttribute().GetAttributeType())
         if attribute_type == FbxNodeAttribute.eMesh:
-            object_data = generate_mesh_object(node)
+            object_data = generate_mesh_object(node, uuid_dict)
         elif attribute_type == FbxNodeAttribute.eLight:
             object_data = generate_light_object(node)
         elif attribute_type == FbxNodeAttribute.eCamera:
@@ -1893,9 +1994,8 @@ def generate_object_hierarchy(node, object_dict):
             object_data = generate_object(node)
 
     object_count += 1
-    object_name = getObjectName(node)
-
-    object_children = {}
+    '''
+    object_children = []
     for i in range(node.GetChildCount()):
         object_count += generate_object_hierarchy(node.GetChild(i), object_children)
 
@@ -1907,15 +2007,17 @@ def generate_object_hierarchy(node, object_dict):
             object_data['zchildren'] = object_children
         else:
             object_data['children'] = object_children
-
-    object_dict[object_name] = object_data
+    '''
+    object_list.append(object_data)
 
     return object_count
 
 def generate_scene_objects(scene):
     object_count = 0
     object_dict = {}
-
+    object_list = []
+    uuid_dict = {'materials': {}, 'geometries': {}, 'textures': {}, 'images': {}}
+    '''
     ambient_light = generate_ambient_light(scene)
     if ambient_light:
         object_dict['AmbientLight'] = ambient_light
@@ -1930,25 +2032,25 @@ def generate_scene_objects(scene):
         default_camera = generate_default_camera()
         object_dict['DefaultCamera'] = default_camera
         object_count += 1
-
+    '''
     node = scene.GetRootNode()
     if node:
         for i in range(node.GetChildCount()):
-            object_count += generate_object_hierarchy(node.GetChild(i), object_dict)
+            object_count += generate_object_hierarchy(node.GetChild(i), object_list, uuid_dict)
 
-    return object_dict, object_count
+    return object_list, object_count, uuid_dict
 
 # #####################################################
 # Generate Scene Output
 # #####################################################
 def extract_scene(scene, filename):
     global_settings = scene.GetGlobalSettings()
-    objects, nobjects = generate_scene_objects(scene)
+    objects, nobjects, uuid_dict = generate_scene_objects(scene)
 
-    textures = generate_texture_dict(scene)
-    materials = generate_material_dict(scene)
-    geometries = generate_geometry_dict(scene)
-    embeds = generate_embed_dict(scene)
+    images, textures = generate_texture_lists(scene, uuid_dict)
+    materials = generate_material_list(scene, uuid_dict)
+    geometries = generate_geometry_list(scene, uuid_dict)
+    #embeds = generate_embed_dict(scene)
 
     ntextures = len(textures)
     nmaterials = len(materials)
@@ -1969,15 +2071,11 @@ def extract_scene(scene, filename):
       defcamera = 'default_camera'
 
     metadata = {
-      'formatVersion': 3.2,
-      'type': 'scene',
+      'formatVersion': 4.3,
+      'type': 'Object',
       'generatedBy': 'convert-to-threejs.py',
-      'objects': nobjects,
-      'geometries': ngeometries,
-      'materials': nmaterials,
-      'textures': ntextures
     }
-
+    '''
     transform = {
       'position' : position,
       'rotation' : rotation,
@@ -1989,7 +2087,7 @@ def extract_scene(scene, filename):
       'camera' : defcamera,
       'fog' : ''
     }
-
+    
     output = {
       'objects': objects,
       'geometries': geometries,
@@ -1998,6 +2096,19 @@ def extract_scene(scene, filename):
       'embeds': embeds,
       'transform': transform,
       'defaults': defaults,
+    }
+    '''
+
+    output = {
+        'geometries': geometries,
+        'materials': materials,
+        'object': {
+            'type': 'Scene',
+            'matrix': [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+            'children': objects
+        },
+        'images': images,
+        'textures': textures
     }
 
     if option_pretty_print:
@@ -2180,8 +2291,8 @@ if __name__ == "__main__":
         output_path = os.path.join(os.getcwd(), args[1])
         write_file(output_path, output_string)
 
-        if option_copy_textures:
-            copy_textures( output_content['textures'] )
+        #if option_copy_textures:
+        #    copy_textures( output_content['textures'] )
 
         print("\nExported Three.js file to:\n%s\n" % output_path)
 
