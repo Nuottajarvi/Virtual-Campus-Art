@@ -9,10 +9,11 @@ import re
 import requests
 import os
 import json
+import subprocess
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-CONVERTER_SCRIPT = 'convert_to_threejs.py'
+CONVERTER_SCRIPT = 'convert_to_threejs.py -t'
 API_URL = 'http://localhost:3000/api/models'
 
 
@@ -27,17 +28,20 @@ class MyEventHandler(FileSystemEventHandler):
             filepath = os.path.join(os.path.dirname(__file__), "%s/%s" % (filename, filename))
             print (filepath)
             print ("Converting...")
-            os.system('python %s -t "%s.fbx" "%s_.json"' % (CONVERTER_SCRIPT, filepath, filepath))
+            subprocess.Popen('python %s "%s.fbx" "%s_.json"' % (CONVERTER_SCRIPT, filepath, filepath), shell=True).wait()
             print ("Conversion done!")
-            time.sleep(1)
             #if filename.endswith(".json"):
                 #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
-            with open(filepath + '_.json', 'rb') as f:
-                body = {}
-                body['title'] = filename
-                body['data'] = json.load(f)
-                r = requests.post(API_URL, json=body)
+            timeout = time.time() + 10
+            while time.time() < timeout:
+                if (os.path.exists('%s_.json' % (filepath))):
+                    with open(filepath + '_.json', 'rb') as f:
+                        body = {}
+                        body['title'] = filename
+                        body['data'] = json.load(f)
+                        r = requests.post(API_URL, json=body)
+                    break;
         except AttributeError:
             pass
         if not event.is_directory:

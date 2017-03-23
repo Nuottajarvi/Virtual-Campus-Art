@@ -72,6 +72,7 @@ module.exports = function modelCtrl() {
 
     function create(req, res) {
         var model = req.body;
+
         model.data = JSON.stringify(model.data);
 
         if (!model.created_at) {
@@ -152,11 +153,21 @@ module.exports = function modelCtrl() {
     }
 
     function getData(req, res) {
-        res.json(req.model.data);
+        if (req.model.data) {
+            res.json(req.model.data);
+        } else {
+            res.sendStatus(404);
+        }
+        
     }
 
     function getRating(req, res) {
-        res.json(req.model.rating);
+        if (req.model.data) {
+            res.json(req.model.rating);
+        } else {
+            res.sendStatus(404);
+        }
+        
     }
 
     return {
