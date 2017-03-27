@@ -14,7 +14,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 CONVERTER_SCRIPT = 'convert_to_threejs.py -t'
-API_URL = 'http://localhost:3000/api/models'
+API_URL = 'http://pnuottaj-b.sendanor.fi/api/models'
 
 
 class MyEventHandler(FileSystemEventHandler):
@@ -26,10 +26,10 @@ class MyEventHandler(FileSystemEventHandler):
             #Converts found file to three.js jsonself.
             #filepath = "%s/%s" % (filename, filename)
             filepath = os.path.join(os.path.dirname(__file__), "%s/%s" % (filename, filename))
-            print (filepath)
-            print ("Converting...")
-            subprocess.Popen('python %s "%s.fbx" "%s_.json"' % (CONVERTER_SCRIPT, filepath, filepath), shell=True).wait()
-            print ("Conversion done!")
+            print filepath
+            print "Converting..."
+            subprocess.Popen('C:/Python27/python %s "%s.fbx" "%s_.json"' % (CONVERTER_SCRIPT, filepath, filepath), shell=True).wait()
+            print "Conversion done!"
             #if filename.endswith(".json"):
                 #filename = filename[:-4] + ".json"
             #Opens the new file and makes a post request to given url.
@@ -41,7 +41,7 @@ class MyEventHandler(FileSystemEventHandler):
                         body['title'] = filename
                         body['data'] = json.load(f)
                         r = requests.post(API_URL, json=body)
-                    break;
+                    break
         except AttributeError:
             pass
         if not event.is_directory:
