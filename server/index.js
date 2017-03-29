@@ -11,13 +11,13 @@ var port = +process.env.PORT || 3000;
 var db = require('./db');
 
 // Test db connection and init if does not exists.
-db.initialize();
-
-// quick-n-dirty-dot-com for database cleanup.
-var args = process.argv.slice(2);
-if (args.find(function (arg) { return arg === 'clean'; })) {
-    db.clean();
-}
+db.initialize(function () {
+    // quick-n-dirty-dot-com for database cleanup.
+    var args = process.argv.slice(2);
+    if (args.find(function (arg) { return arg === 'clean'; })) {
+        db.clean();
+    }
+});
 
 // bootstrap routes
 fs.readdirSync(__dirname + '/routes').forEach(function (file) {

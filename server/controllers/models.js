@@ -1,5 +1,6 @@
 var db = require('./../db');
 var moment = require('moment');
+var fs = require('fs');
 
 module.exports = function modelCtrl() {
     function paramModel(req, res, next, model_id) {
@@ -14,11 +15,16 @@ module.exports = function modelCtrl() {
                     next();
                 } else {
                     req.model = results[0];
-                    req.model.data = JSON.parse(req.model.data);
+                    // req.model.data = JSON.parse(req.model.data);
                     next();
                 }
             });
         });
+    }
+
+    function paramLocation(req, res, next, location_id) {
+        req.mlocation = location_id;
+        next();
     }
 
     function find(req, res) {
@@ -71,9 +77,11 @@ module.exports = function modelCtrl() {
     }
 
     function create(req, res) {
+        console.log(req.file);
         var model = req.body;
-
-        model.data = JSON.stringify(model.data);
+        console.log(model);
+        model.filename = req.file.filename;
+        //model.data = JSON.stringify(model.data);
 
         if (!model.created_at) {
             model.created_at = moment().format('YYYY-MM-DD H:mm:ss');
@@ -120,7 +128,7 @@ module.exports = function modelCtrl() {
                         res.sendStatus(404);
                     } else {
                         var model = results[0];
-                        model.data = JSON.parse(model.data);
+                        //model.data = JSON.parse(model.data);
                         var rating;
                         if (upvoting) {
                             rating = model.rating ? model.rating + 1 : 1;
@@ -152,6 +160,40 @@ module.exports = function modelCtrl() {
         res.json(req.model);
     }
 
+    function getAtLocation(req, res) {
+        db.getPool().getConnection(function (err, connection) {
+            connection.query(`SELECT * FROM models 
+            WHERE location = ? 
+            AND (location, created_at) IN (SELECT location, MAX(created_at) FROM models GROUP BY location)`, 
+            [+req.mlocation], function (error, results, fields) {
+                connection.release();
+
+                if (error) {
+                    res.sendStatus(500);
+                } else if (results.length < 1) {
+                    res.sendStatus(404);
+                } else {
+                    req.model = results[0];
+                    //req.model.data = JSON.parse(req.model.data);
+                    res.json(req.model);
+                }
+            });
+        });
+    }
+    function getData(req, res) {
+        if (req.model) {
+            var data = JSON.parse(fs.readFileSync('models/' + req.model.filename, 'utf8'));
+            if (data) {
+                res.json(data);
+            } else {
+                res.sendStatus(500);
+            }
+        } else {
+            res.sendStatus(404);
+        }
+    }
+
+    /*
     function getData(req, res) {
         if (req.model.data) {
             res.json(req.model.data);
@@ -160,9 +202,9 @@ module.exports = function modelCtrl() {
         }
         
     }
-
+    */
     function getRating(req, res) {
-        if (req.model.data) {
+        if (req.model) {
             res.json(req.model.rating);
         } else {
             res.sendStatus(404);
@@ -172,11 +214,13 @@ module.exports = function modelCtrl() {
 
     return {
         paramModel,
+        paramLocation,
         find,
         create,
         upvote,
         downvote,
         get: get,
+        getAtLocation,
         getData,
         getRating
     };

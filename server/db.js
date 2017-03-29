@@ -10,13 +10,16 @@ var pool = null;
  * Return the database pool.
  */
 function getPool() {
-    return pool ? pool : mysql.createPool(config);
+    if (!pool) {
+        pool = mysql.createPool(config);
+    }
+    return pool;
 }
 
 /**
  * Initializes database connection, and created a schema if no such yet.
  */
-function initialize() {
+function initialize(callback) {
     getPool().getConnection(function (err, connection) {
         if (err) {
             var con = mysql.createConnection({
@@ -32,10 +35,16 @@ function initialize() {
                 }
             });
 
-            dumpSchema(con);
-            console.log('Database initialized!');
+            dumpSchema(con, function() {
+                con.end();
+                pool = mysql.createPool(config);
+                console.log('Database initialized!');
+                callback();
+            });
+            
         } else {
             console.log('Database connected!');
+            callback();
         }
     });
 }
@@ -45,7 +54,9 @@ function initialize() {
  */
 function clean() {
     getPool().getConnection(function (err, connection) {
-        dumpSchema(connection, true);
+        dumpSchema(connection, function() {
+            connection.release();
+        });
         console.log('Database cleaned!');
     });
 }
@@ -53,7 +64,7 @@ function clean() {
 /**
  * Dumps the database schema.
  */
-function dumpSchema(connection, isPool) {
+function dumpSchema(connection, callback) {
     console.log('Dumping schema...');
     var rl = readline.createInterface({
         input: fs.createReadStream(__dirname + '/config/schema_dump.sql')
@@ -65,9 +76,7 @@ function dumpSchema(connection, isPool) {
         });
     });
 
-    rl.on('close', function () {
-        isPool ? connection.release() : connection.end();
-    });
+    rl.on('close', callback);
 }
 
 module.exports = {
