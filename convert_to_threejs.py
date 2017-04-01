@@ -463,7 +463,7 @@ def generate_material_object(material, uuid_dict):
         texture_count = FbxLayerElement.sTypeTextureCount()
         for texture_index in range(texture_count):
             material_property = material.FindProperty(FbxLayerElement.sTextureChannelNames(texture_index))
-            #generate_texture_bindings(material_property, output, uuid_dict)
+            generate_texture_bindings(material_property, output, uuid_dict)
 
     output['wireframe'] = False
     output['wireframeLinewidth'] = 1

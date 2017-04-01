@@ -14,7 +14,7 @@ var truePositions = [ 	{x:-26.5, y: 3.72, z: 32},
 						{x:-20, y: 3.72, z: -27}
 					];
 
-var camera, scene, renderer, oldScene;
+var camera, scene, renderer;
 
 var mouseX = 0, mouseY = 0;
 
@@ -27,6 +27,7 @@ var mouseRaycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
 var objects = [];
 var artModels = [];
+var volatileModels = new Array(2);
 
 var movementEnabled = false;
 
@@ -39,14 +40,16 @@ var canJump = false;
 var prevTime = performance.now();
 var velocity = new THREE.Vector3();
 
-var time;
+var refreshTime;
 
 init();
 animate();
 
 function refresh() {
-	if (new Date().getTime() - time >= 60000) {
-		getArtModels(scene);
+	if (new Date().getTime() - refreshTime >= 10000) {
+		updateArtModels(scene);
+		refreshTime = new Date().getTime();
+		setTimeout(refresh, 10000);
 	} else {
 		setTimeout(refresh, 10000);
 	}
@@ -79,7 +82,6 @@ function shuffle(a) {
 }
 
 function getArtModels(scene){
-	//scene = $.extend(true, {}, oldScene);
 
 	var files = [];
 
@@ -106,6 +108,7 @@ function getArtModels(scene){
 						object.rating = file.rating;
 						object.objectId = file.model_id;
 						object.date = file.created_at;
+						object.isVolatile = false;
 
 						artModels.push(object);
 						scene.add( object );
@@ -126,8 +129,62 @@ function getArtModels(scene){
 			obj.rating = data.rating;
 			obj.objectId = data.model_id;
 			obj.date = data.created_at;
+			obj.isVolatile = true;
 
 			artModels.push(obj);
+			volatileModels[0] = obj;
+			scene.add(obj);
+		});
+	});
+
+	$.get("api/models/newest/2", function(data) {
+		loader.load('api/models/' + data.model_id + '/data', function(obj) {
+			obj.position.x = truePositions[1].x;
+			obj.position.y = truePositions[1].y;
+			obj.position.z = truePositions[1].z;
+
+			obj.name = data.title;
+			obj.rating = data.rating;
+			obj.objectId = data.model_id;
+			obj.date = data.created_at;
+			obj.isVolatile = true;
+
+			artModels.push(obj);
+			volatileModels[1] = obj;
+			scene.add(obj);
+		});
+	});
+}
+
+function updateArtModels(scene) {
+	console.log("updateArtModels");
+	var loader = new THREE.ObjectLoader();
+	loader.texturePath = 'textures/';
+
+	$.get("api/models/newest/1", function(data) {
+		loader.load('api/models/' + data.model_id + '/data', function(obj) {
+			obj.position.x = truePositions[0].x;
+			obj.position.y = truePositions[0].y;
+			obj.position.z = truePositions[0].z;
+
+			obj.name = data.title;
+			obj.rating = data.rating;
+			obj.objectId = data.model_id;
+			obj.date = data.created_at;
+
+			pointerLock(true);
+			if (volatileModels[0] && volatileModels[0].objectId !== data.model_id) {
+				// Remove old model:
+				$.each(artModels, function (i) {
+					if (artModels[i].isVolatile && artModels[i].objectId === volatileModels[0].objectId) {
+						artModels.splice(i, 1);
+					}
+				});
+				scene.remove(volatileModels[0]);
+			}
+
+			artModels.push(obj);
+			volatileModels[0] = obj;
 			scene.add(obj);
 		});
 	});
@@ -143,10 +200,23 @@ function getArtModels(scene){
 			obj.objectId = data.model_id;
 			obj.date = data.created_at;
 
+			pointerLock(true);
+			if (volatileModels[1] && volatileModels[1].objectId !== data.model_id) {
+				// Remove old model:
+				$.each(artModels, function (i) {
+					if (artModels[i].isVolatile && artModels[i].objectId === volatileModels[1].objectId) {
+						artModels.splice(i, 1);
+					}
+				});
+				scene.remove(volatileModels[1]);
+			}
+
 			artModels.push(obj);
+			volatileModels[1] = obj;
 			scene.add(obj);
 		});
 	});
+	
 }
 
 function init() {
@@ -169,14 +239,17 @@ function init() {
 	var ambient = new THREE.AmbientLight( 0x707070 );
 	scene.add( ambient );
 
-	var directionalLight = new THREE.DirectionalLight( 0xffeedd );
-	directionalLight.position.set( 0, 0, 1 );
+	//var directionalLight = new THREE.DirectionalLight( 0xffeedd );
+	var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+	directionalLight.position.set( 0, 0, -1 );
 	scene.add( directionalLight );
 
 	var loader = new THREE.JSONLoader();
 	loader.load( 'campus_model/centralLobby.json', function ( geometry, materials ) {
-		var material = new THREE.MultiMaterial( materials );
-		var object = new THREE.Mesh( geometry, material );
+		for (var i = 0; i < materials.length; i++) {
+			materials[i] = new THREE.MeshLambertMaterial(materials[i]);
+		}
+		var object = new THREE.Mesh( geometry, materials );
 		object.rotateX(Math.PI / 2);
 		objects.push(object);
 		scene.add( object );
@@ -271,19 +344,17 @@ function init() {
 	groundRaycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, -1, 0 ), 0, 2);
 	movementRaycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3(), 0, 2);
 
-	//oldScene = $.extend(true, {}, scene);
 	getArtModels(scene);
 
 	renderer = new THREE.WebGLRenderer();
 	renderer.setPixelRatio( window.devicePixelRatio );
 	renderer.setSize( window.innerWidth, window.innerHeight );
 	container.appendChild( renderer.domElement );
-	/*
+	
 	$(document.body).bind("mousemove keypress", function (event) {
-		time = new Date().getTime();
+		refreshTime = new Date().getTime();
 	});
 	setTimeout(refresh, 10000);
-	*/
 }
 
 function onWindowResize() {

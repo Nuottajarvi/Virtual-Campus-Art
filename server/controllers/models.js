@@ -77,9 +77,7 @@ module.exports = function modelCtrl() {
     }
 
     function create(req, res) {
-        console.log(req.file);
         var model = req.body;
-        console.log(model);
         model.filename = req.file.filename;
         //model.data = JSON.stringify(model.data);
 
